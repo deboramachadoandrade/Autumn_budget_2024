@@ -1,0 +1,9 @@
+langchain
+langchain-community
+langchain-openai
+streamlit
+bs4
+openai
+tiktoken
+faiss-cpu
+pymupdf
