@@ -68,7 +68,7 @@ async def main():
         "Searches and returns information regarding the 2024 Autumn Budget. You do not know anything about the 2024 Autumn Budget, so if you are ever asked about it you should use this tool.",
     )
     tools = [tool]
-    llm = ChatOpenAI(temperature=0.1, streaming=True, model="gpt-4")
+    llm = ChatOpenAI(temperature=0.1, streaming=True, model="gpt-3.5-turbo")
 
     # Prompt that will guide the chatbot to ask relevant questions to the user:
     message = SystemMessage(
@@ -93,6 +93,8 @@ when initial questions are answered, ask whether you can assist them with someth
 
 If the user asks a question that falls outside the scope of the new budget, answer that you were instructed to limit your answers to topics related to the 2024 Autumn budget.
 
+Make sure that your answers are strictly backed by the retrieved context and that no assumptions are made. For example, if asked who is the chancellor of the Exchequer, it would be wrong to answer James Murray based on the assumption that he presented the document. James Murray is the Exchequer secretary.
+
 Let us have an engaging conversation with the user:
 """
         )
@@ -105,7 +107,7 @@ Let us have an engaging conversation with the user:
     agent_executor = AgentExecutor(
         agent=agent,
         tools=tools,
-        verbose=False,
+        verbose=True,
         return_intermediate_steps=True,
     )
 
@@ -118,9 +120,10 @@ Let us have an engaging conversation with the user:
     if "messages" not in st.session_state or st.sidebar.button("Clear message history"):
         st.session_state["messages"] = [AIMessage(content=starter_message)]
 
-
     if "original_excerpts" not in st.session_state:
-        st.session_state["cold_email"] = ""
+        st.session_state["original_excerpts"] = ""
+
+   
 
 
 
@@ -132,7 +135,6 @@ Let us have an engaging conversation with the user:
             st.chat_message("user").write(msg.content)
         memory.chat_memory.add_message(msg)
 
-
     if prompt := st.chat_input(placeholder=starter_message):
         st.chat_message("user").write(prompt)
         with st.chat_message("assistant"):
@@ -140,45 +142,30 @@ Let us have an engaging conversation with the user:
             response = agent_executor.invoke(
                 {"input": prompt, "history": st.session_state.messages},
                 callbacks=[st_callback],
-                include_run_info=True,
+                include_run_info=False,
             )
             st.session_state.messages.append(AIMessage(content=response["output"]))
             st.write(response["output"])
-            memory.save_context({"input": prompt}, response)
-            st.session_state["messages"] = memory.buffer
             
+            st.sidebar.header("Excerpts from the Autumn Budget related to your question :")
+
+            try:
+                st.session_state["original_excerpts"] = response["intermediate_steps"][0][1]
+                st.sidebar.write(st.session_state["original_excerpts"])
+            except:
+                st.sidebar.write("The original text was not used to produce this answer.")
+            
+            
+                
+            response["intermediate_steps"] = []
+            memory.save_context(
+                    {"input": prompt}, response
+                )
+
+            st.session_state["messages"] = memory.buffer
 
 
-            if not st.session_state["amending_phase"]: # if this is the first time the master prompt is being generated:
-                # Here we start the generation of the master prompt
-                st.sidebar.header("Original excerpts:")
-                with st.sidebar:
-                    # We use a spinner to indicate that information is being processed:
-                    with st.spinner("Processing..."):
-                           
-
-                        # An exemplary cold email is generated based on the master prompt and printed on the sidebar:
-                        original_excerpts = "Original text will come here"
-                        st.success("Done!")
-            else: # if we are in the ammending phase:
-                # Here we start the generation of the master prompt
-                st.sidebar.header("Original excerpts:")
-                with st.sidebar:
-                    # We use a spinner to indicate that information is being processed:
-                    with st.spinner("Processing..."):
-                            
-
-                        # An exemplary cold email is generated based on the master prompt and printed on the sidebar:
-                        original_excerpts = "Original text will come here"
-                    st.success("Done!")
-            st.sidebar.write(original_excerpts)    
-            st.session_state["original_excerpts"] = original_excerpts
-            st.session_state["amending_phase"] = True
-
-        # Keep the last generated email displayed on the sidebar:
-        #elif st.session_state["amending_phase"]:
-        #    st.sidebar.header("Original excerpts:")
-        #    st.sidebar.write(st.session_state["original_excerpts"])
+           
                 
 
             
